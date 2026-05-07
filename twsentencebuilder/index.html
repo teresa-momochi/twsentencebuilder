@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sentence Builder - 阿奇線上教學工作室</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background: linear-gradient(180deg, #4db8ff, #003366); margin: 0; display: flex; flex-direction: column; min-height: 100vh; overflow-y: auto; }
+        .container { display: flex; flex-direction: column; width: 100%; max-width: 600px; margin: auto; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(15px); position: relative; padding-bottom: 30px; }                                
+        .header-section { padding: 10px; background: rgba(0, 0, 0, 0.2); z-index: 10; }
+        
+        /* 設定面板 */
+        #teacherPanel { max-height: 0; overflow: hidden; transition: 0.3s; background: white; border-radius: 10px; margin: 5px; position: absolute; top: 90px; left: 5px; right: 5px; box-shadow: 0 10px 20px rgba(0,0,0,0.3); z-index: 100; }
+        textarea { width: 95%; height: 80px; margin: 5px auto; display: block; border-radius: 8px; padding: 8px; border: 1px solid #ccc; font-size: 1rem; }
+        
+        /* 橘色校對區 */
+        #reviewArea { display: none; border: 2px solid #ff7f50; border-radius: 8px; padding: 10px; background: #fff9f5; margin-top: 10px; }
+        .review-hint { color: #d35400; font-weight: bold; font-size: 0.9rem; margin-bottom: 5px; display: block; }
+        
+        /* 按鈕群組 */
+        .confirm-btn-wrapper { display: flex; justify-content: space-between; gap: 10px; margin-top: 8px; }
+        .confirm-btn { background: #ff7f50; color: white; padding: 10px 25px; border-radius: 20px; border: none; font-weight: bold; cursor: pointer; flex: 1; }
+        .back-btn { background: #999; color: white; padding: 10px 20px; border-radius: 20px; border: none; font-weight: bold; cursor: pointer; flex: 1; }
+        
+        /* 遊戲區域 */
+        #game { padding: 15px; display: flex; flex-wrap: wrap; gap: 12px; justify-content:center; align-content: flex-start; min-height: 150px; }
+        .word { background: white; padding: 12px 18px; border-radius: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); font-size: 1.1rem; cursor: pointer; transition: 0.2s; }
+        .word.selected { background: #ddd; opacity: 0.5; }
+        
+        .footer-section { background: rgba(0, 0, 0, 0.4); padding: 15px; border-top-left-radius: 20px; border-top-right-radius: 20px; }
+        #answer { font-size: 1.3rem; color: #ffff00; min-height: 1.5em; text-align: center; font-weight: bold; }
+        #result { font-size: 1rem; text-align: center; color: #fff; margin-top: 5px; }
+        #progress { color: #fff; font-size: 0.8rem; text-align: center; }
+        
+        .btn-group { display: none; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
+        button { padding: 12px; border-radius: 25px; border: none; font-weight: bold; cursor: pointer; }
+        .play { background: #ff7f50; color: white; flex: 2; }
+        .next { background: #2196f3; color: white; flex: 1; }
+        .speak { background: #ffcc00; flex: 1; }
+        .translate-btn { background: #4caf50; color: white; width: 100%; margin-top: 5px; }
+        .help-btn { background: #fff; color: #333; width: 100%; margin-bottom: 5px; }
+        .peek-btn { background: #607d8b; color: white; flex: 1; }
+        
+        /* 挑戰成功畫面 */
+        .finish-area { text-align: center; width: 100%; padding: 20px; }
+        .restart-btn { background: #ff4444 !important; color: white !important; padding: 20px 40px; font-size: 1.3rem; border-radius: 15px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 2px solid #fff; }
+
+        /* --- 科技感說明彈窗專屬樣式 --- */
+        #helpModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 15, 30, 0.85); z-index: 999; justify-content: center; align-items: center; backdrop-filter: blur(10px); }
+        .modal-content { background: rgba(20, 30, 48, 0.95); width: 88%; max-width: 450px; border-radius: 25px; padding: 25px; border: 1px solid rgba(0, 183, 255, 0.5); box-shadow: 0 0 30px rgba(0, 183, 255, 0.3); color: #e0f4ff; animation: modalFade 0.4s ease-out; position: relative; overflow-y: auto; max-height: 85vh; }
+        @keyframes modalFade { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .modal-content h3 { color: #00d2ff; text-align: center; font-size: 1.4rem; margin-top: 0; text-transform: uppercase; letter-spacing: 2px; border-bottom: 1px solid rgba(0, 183, 255, 0.2); padding-bottom: 10px; }
+        .help-step { margin: 15px 0; background: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 15px; border-left: 4px solid #00d2ff; }
+        .help-step b { color: #ffcc00; display: block; margin-bottom: 5px; }
+        .help-step p { margin: 0; font-size: 0.95rem; line-height: 1.4; color: #b0d4ff; }
+        .close-modal { background: linear-gradient(90deg, #00d2ff, #3a7bd5); color: white !important; width: 100%; margin-top: 20px; font-size: 1.1rem; letter-spacing: 2px; box-shadow: 0 4px 15px rgba(58, 123, 213, 0.4); transition: 0.3s; border: none; padding: 12px; border-radius: 25px; cursor: pointer; font-weight: bold; }
+        .close-modal:active { transform: scale(0.95); }
+        #ocrStatus { font-size: 0.85rem; color: #666; text-align: center; margin: 5px 0; display: none; font-weight: bold; }
+
+        /* --- 浮水印樣式 --- */
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            font-family: "Cooper Black", sans-serif;
+            font-size: 15vw;
+            font-weight: bold;
+            color: rgba(0, 0, 0, 0.03); 
+            pointer-events: none;       /* 滑鼠穿透 */
+            white-space: nowrap;
+            z-index: 9999;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="watermark">Akey</div>
+
+    <audio id="winSound" src="win.mp3"></audio>
+    <audio id="cheerSound" src="cheer.mp3"></audio>
+
+    <div id="helpModal">
+        <div class="modal-content">
+            <h3>🛰️ 系統操作導引</h3>
+            <div class="help-step">
+                <b>第一步：輸入或辨識原文</b>
+                <p>點選「⚙️設定」後，貼上文章或利用「📷拍照」自動讀取文字。完成後點選「轉成練習」。</p>
+            </div>
+            <div class="help-step">
+                <b>第二步：內容校對 (橘色區)</b>
+                <p>系統會自動分句。若有誤可直接編輯，確保標點符號正確後點選「確定」。</p>
+            </div>
+            <div class="help-step">
+                <b>第三步：互動式重組練習</b>
+                <p>點選單字按鈕進行拼句。配合「🔊唸」與「🌐翻譯」加強記憶。若迷路可隨時點選上方「⚙️設定」返回修改。</p>
+            </div>
+            <div class="help-step" style="border-left-color: #ff4444;">
+                <b>💡 快捷技巧</b>
+                <p>遇到困難可以點選「👁️偷看」參考正確句子。完成所有關卡將獲得成功特效！</p>
+            </div>
+            <button class="close-modal" onclick="closeHelp()">啟動學習系統</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header-section">
+            <button class="help-btn" onclick="openHelp()">💡 操作導引</button>
+            <button id="toggleBtn" onclick="toggleTeacher()" style="background:#eee; width: 100%;">⚙️ 設定課文內容 (返回修改)</button>
+            
+            <div id="teacherPanel">
+                <div style="padding: 10px;">
+                    <div id="inputStep">
+                        <textarea id="paragraphInput" placeholder="在此貼上整段文章..."></textarea>
+                        <div style="display: flex; gap: 5px; margin-bottom: 8px;">
+                            <button style="background:#9c27b0; color:white; flex:1;" onclick="document.getElementById('imageInput').click()">📷 拍照/上傳圖片辨識</button>
+                        </div>
+                        <input type="file" id="imageInput" accept="image/*" capture="environment" style="display:none" onchange="handleOCR(this)">
+                        <div id="ocrStatus">辨識中... 0%</div>
+                        <button style="background:#4caf50; color:white; width: 100%;" onclick="convertParagraph()">✂️ 轉成練習</button>
+                    </div>
+
+                    <div id="reviewArea">
+                        <span class="review-hint">⁕ 請在此修正標點符號或分句：</span>
+                        <textarea id="input" style="height:120px; border-color: #ff7f50;"></textarea>
+                        <div class="confirm-btn-wrapper">
+                            <button class="back-btn" onclick="goBackToInput()">⬅ 返回修改原文</button>
+                            <button class="confirm-btn" onclick="confirmText()">確定 ✓</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="btn-group" id="gameControls">
+                <button class="play" onclick="startGame()">▶ 開始</button>
+                <button class="speak" onclick="speakSentence()">🔊 唸</button>
+                <button class="next" id="nextBtn" onclick="nextQuestion()">下一題</button>
+                <button class="peek-btn" onclick="peekSentence()">👁️ 偷看</button>
+                <button class="translate-btn" onclick="translateSentence()">🌐 翻譯</button>
+            </div>
+        </div>
+
+        <div id="game">
+            <div style="color:white; padding:20px; text-align:center; width:100%;">
+                請先設定內容並按下 [確定 ✓]
+            </div>
+        </div>
+
+        <div class="footer-section">
+            <div id="progress">第 0 / 0 題</div>
+            <div id="answer"></div>
+            <div id="result"></div>
+        </div>
+    </div>
+
+<script>
+    function openHelp() { document.getElementById('helpModal').style.display = 'flex'; }
+    function closeHelp() { document.getElementById('helpModal').style.display = 'none'; }
+
+    let sentences = [];
+    let current = 0;
+    let correct = [];
+    let selected = [];
+    let teacherOpen = false;
+
+    function toggleTeacher(){
+        const panel = document.getElementById("teacherPanel");
+        const reviewArea = document.getElementById("reviewArea");
+        const inputStep = document.getElementById("inputStep");
+
+        teacherOpen = !teacherOpen;
+        if (teacherOpen) {
+            if (document.getElementById("input").value.trim() !== "") {
+                inputStep.style.display = "none";
+                reviewArea.style.display = "block";
+            } else {
+                inputStep.style.display = "block";
+                reviewArea.style.display = "none";
+            }
+        }
+        panel.style.maxHeight = teacherOpen ? "600px" : "0px";
+    }
+
+    function goBackToInput() {
+        document.getElementById("inputStep").style.display = "block";
+        document.getElementById("reviewArea").style.display = "none";
+    }
+
+    function convertParagraph(){
+        let text = document.getElementById("paragraphInput").value;
+        if(!text.trim()){ alert("請先貼入課文"); return; }
+        let list = text.split(/[.!?\n]/).map(s => s.trim()).filter(s => s.length > 0).map(s => s + ".");
+        document.getElementById("input").value = list.join("\n");
+        document.getElementById("inputStep").style.display = "none";
+        document.getElementById("reviewArea").style.display = "block";
+    }
+
+    function confirmText() {
+        let raw = document.getElementById("input").value.trim();
+        if(raw === "") { alert("請輸入有效的內容"); return; }
+        document.getElementById("gameControls").style.display = "flex";
+        toggleTeacher();
+    }
+
+    function startGame(){
+        let raw = document.getElementById("input").value.trim();
+        sentences = raw.split("\n").filter(s=>s.trim()!=="");
+        if(sentences.length === 0) { alert("請先確認內容"); return; }
+        current = 0;
+        loadQuestion();
+    }
+
+    function loadQuestion(){
+        document.getElementById("result").innerText = ""; 
+        let text = sentences[current];
+        if(!text) return;
+        correct = text.match(/[A-Za-z0-9]+('[A-Za-z]+)?|[^\s\w]/g) || [];
+        let shuffled = [...correct].sort(()=>Math.random()-0.5);
+        selected = [];
+        document.getElementById("progress").innerText = `第 ${current+1} / ${sentences.length} 題`;
+        const nextBtn = document.getElementById("nextBtn");
+        nextBtn.style.display = (current === sentences.length - 1) ? "none" : "block";
+
+        let gameDiv = document.getElementById("game");
+        gameDiv.innerHTML = "";
+        shuffled.forEach((word, index)=>{
+            let div = document.createElement("div");
+            div.className = "word";
+            div.innerText = word;
+            div.onclick=()=>{
+                let i = selected.findIndex(item => item.id === index);
+                if(i === -1){
+                    selected.push({word, id: index});
+                    div.classList.add("selected");
+                }else{
+                    selected.splice(i,1);
+                    div.classList.remove("selected");
+                }
+                updateAnswer();
+                checkAnswer();
+            }
+            gameDiv.appendChild(div);
+        });
+        document.getElementById("answer").innerText="";
+        document.getElementById("result").innerText="";
+        speakSentence();
+    }
+
+    function speakSentence(){
+        let text = sentences[current];
+        if(!text) return;
+        let msg = new SpeechSynthesisUtterance(text);
+        msg.lang = "en-US";
+        msg.rate = 0.7;
+        speechSynthesis.cancel();
+        speechSynthesis.speak(msg);
+    }
+
+    function updateAnswer(){
+        document.getElementById("answer").innerText = selected.map(s => s.word).join(" ");
+    }
+
+    function checkAnswer(){
+        if(selected.length !== correct.length) return;
+        let result = selected.map(s => s.word).join(" ");
+        let answer = correct.join(" ");
+        if(result === answer) {
+            document.getElementById("result").innerHTML = "<span style='color:#00ff00'>✅ 正確！</span>";
+            document.getElementById("winSound").currentTime = 0;
+            document.getElementById("winSound").play();
+            if (current === sentences.length - 1) {
+                document.getElementById("cheerSound").currentTime = 0;
+                document.getElementById("cheerSound").play();
+                confetti({ particleCount: 150, spread: 80, origin: { y: 0.8 } });
+                setTimeout(showFinishScreen, 1000);
+            }
+        } else {
+            document.getElementById("result").innerHTML = "<span style='color:#ff4444'>❌ 順序不對</span>";
+        }
+    }
+
+    function showFinishScreen() {
+        let gameDiv = document.getElementById("game");
+        gameDiv.innerHTML = `
+            <div class="finish-area">
+                <h2 style="color:white;">🏆 挑戰成功！</h2>
+                <button class="restart-btn" onclick="resetToTeacher()">🔄 製作新練習</button>
+            </div>
+        `;
+    }
+
+    function resetToTeacher() {
+        document.getElementById("paragraphInput").value = "";
+        document.getElementById("input").value = "";
+        document.getElementById("gameControls").style.display = "none";
+        document.getElementById("game").innerHTML = `<div style="color:white; padding:20px; text-align:center; width:100%;">請重新設定內容</div>`;
+        sentences = [];
+        current = 0;
+        if(!teacherOpen) toggleTeacher();
+    }
+
+    function nextQuestion(){
+        if(current < sentences.length-1){ current++; loadQuestion(); }
+    }
+
+    function peekSentence() {
+        let text = sentences[current];
+        if(!text) return;
+        alert("【正確句子參考】\n" + text);
+    }
+
+    async function translateSentence() {
+        let text = sentences[current];
+        if (!text) return;
+        const resDiv = document.getElementById("result");
+        resDiv.innerText = "正在翻譯中...";
+        try {
+            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=zh-TW&dt=t&q=${encodeURIComponent(text)}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            const translatedText = data[0][0][0];
+            resDiv.innerText = "中文對照：\n" + translatedText;
+            resDiv.style.color = "#ffff00";
+        } catch (error) {
+            resDiv.innerText = "翻譯連線失敗，請稍後再試。";
+        }
+    }
+
+    async function handleOCR(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const statusDiv = document.getElementById('ocrStatus');
+        const textarea = document.getElementById('paragraphInput');
+        statusDiv.style.display = 'block';
+        statusDiv.innerText = "正在讀取圖片...";
+        try {
+            const worker = await Tesseract.createWorker('eng', 1, {
+                logger: m => { if(m.status === 'recognizing text') statusDiv.innerText = `辨識中: ${Math.round(m.progress * 100)}%`; }
+            });
+            const { data: { text } } = await worker.recognize(file);
+            textarea.value = text.replace(/\n\s*\n/g, '\n').trim();
+            await worker.terminate();
+            statusDiv.innerText = "辨識完成！可點擊轉成練習。";
+            setTimeout(() => { statusDiv.style.display = 'none'; }, 2000);
+        } catch (error) {
+            statusDiv.innerText = "辨識失敗。";
+        }
+    }
+</script>
+</body>
+</html>
